@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Container
+  postgres:
+    image: postgres:16-alpine
+    container_name: sweety_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sweety_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sweety_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Express + Node.js Backend API
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: sweety_server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgrespassword@postgres:5432/sweety_db
+      USE_PGLITE: "false"
+      JWT_SECRET: sweety_production_super_secret_jwt_key_2026
+      JWT_EXPIRES_IN: 7d
+    ports:
+      - "5000:5000"
+
+  # React Frontend (Vite + Nginx)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: sweety_client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+    driver: local
